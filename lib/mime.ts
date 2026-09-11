@@ -26,6 +26,18 @@ function base64UrlEncode(input: string | Buffer): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/**
+ * Encode a header parameter value (e.g. attachment filename) per RFC 2047 when
+ * it contains non-ASCII characters (Indian names, multilingual filenames).
+ * ASCII names are passed through quoted; quotes/backslashes are stripped to
+ * prevent header injection.
+ */
+export function encodeHeaderParam(value: string): string {
+  const safe = value.replace(/["\\\r\n]/g, "");
+  if (/^[\x20-\x7e]*$/.test(safe)) return `"${safe}"`;
+  return `"=?UTF-8?B?${Buffer.from(safe, "utf-8").toString("base64")}?="`;
+}
+
 function mimeTypeFor(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const map: Record<string, string> = {
@@ -99,10 +111,11 @@ export function buildRawMessage(opts: {
     const mimeType = att.mimeType || mimeTypeFor(att.filename);
     // Strip whitespace from base64 chunks
     const clean = att.contentBase64.replace(/\s/g, "");
+    const encodedName = encodeHeaderParam(att.filename);
     lines.push(`--${boundaryMixed}`);
-    lines.push(`Content-Type: ${mimeType}; name="${att.filename.replace(/"/g, "")}"`);
+    lines.push(`Content-Type: ${mimeType}; name=${encodedName}`);
     lines.push("Content-Transfer-Encoding: base64");
-    lines.push(`Content-Disposition: attachment; filename="${att.filename.replace(/"/g, "")}"`);
+    lines.push(`Content-Disposition: attachment; filename=${encodedName}`);
     lines.push("");
     lines.push(clean.replace(/(.{76})/g, "$1\r\n"));
   }

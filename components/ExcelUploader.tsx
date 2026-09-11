@@ -28,6 +28,10 @@ export default function ExcelUploader({ fileName, headers, rowCount, onLoaded, o
       setError("Only .xlsx and .xls files are accepted.");
       return;
     }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("That Excel file is larger than 10 MB. Please use a smaller file.");
+      return;
+    }
     setReading(true);
     try {
       const buf = await file.arrayBuffer();

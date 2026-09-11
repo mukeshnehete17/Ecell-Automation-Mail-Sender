@@ -62,7 +62,12 @@ export default function AttachmentManager(props: Props) {
     props.onFileError(null);
     if (kind === "same") {
       const existing = new Set(props.sameFiles.map((f) => f.name));
-      props.onSameFiles([...props.sameFiles, ...incoming.filter((f) => !existing.has(f.name))]);
+      const next = [...props.sameFiles, ...incoming.filter((f) => !existing.has(f.name))];
+      if (next.reduce((s, f) => s + f.size, 0) > MAX_TOTAL_ATTACHMENT_BYTES) {
+        props.onFileError("Attachments exceed 20 MB in total. Please remove a file or use smaller files.");
+        return;
+      }
+      props.onSameFiles(next);
     } else {
       const existing = new Set(props.individualFiles.map((f) => f.name));
       props.onIndividualFiles([...props.individualFiles, ...incoming.filter((f) => !existing.has(f.name))]);

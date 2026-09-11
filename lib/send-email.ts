@@ -1,5 +1,5 @@
 // Shared single-email send logic used by /api/gmail/send and /api/gmail/test.
-import { gmailClient, getGmailContext, isQuotaError, isAuthError } from "./gmail";
+import { gmailClient, getGmailContext, isQuotaError, isAuthError, refreshAccessToken } from "./gmail";
 import { buildRawMessage, type AttachmentPayload } from "./mime";
 
 export interface SendPayload {
@@ -62,37 +62,56 @@ export async function sendOneEmail(payload: SendPayload): Promise<{
       body: { ok: false, error: "Attachments exceed the 20 MB per-email limit. Please use smaller files." },
     };
 
-  try {
-    const gmail = gmailClient(ctx.accessToken, ctx.refreshToken);
-    const raw = buildRawMessage({ to, subject, bodyText, attachments });
-    await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
-    return { ok: true, status: 200, body: { ok: true, from: ctx.email } };
-  } catch (err: unknown) {
-    console.error("Gmail send failed:", err instanceof Error ? err.message : err);
-    if (isAuthError(err)) {
-      return {
-        ok: false,
-        status: 401,
-        body: {
+  const raw = buildRawMessage({ to, subject, bodyText, attachments });
+
+  // Attempt the send, with at most ONE token-refresh retry on auth failure.
+  // (Access tokens expire after ~1 hour; long campaigns can cross that boundary.)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const token = attempt === 0 ? ctx.accessToken : await refreshAccessToken(ctx.refreshToken);
+    if (!token) break;
+    try {
+      const { gmail } = gmailClient(token, ctx.refreshToken);
+      await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+      return { ok: true, status: 200, body: { ok: true, from: ctx.email } };
+    } catch (err: unknown) {
+      console.error("Gmail send failed:", err instanceof Error ? err.message : err);
+      if (isAuthError(err) && attempt === 0 && ctx.refreshToken) {
+        continue; // retry once with a refreshed access token
+      }
+      if (isAuthError(err)) {
+        return {
           ok: false,
-          error: "Gmail authentication expired. Please disconnect and reconnect Gmail.",
-          code: "AUTH_EXPIRED",
-        },
-      };
-    }
-    if (isQuotaError(err)) {
-      return {
-        ok: false,
-        status: 429,
-        body: {
+          status: 401,
+          body: {
+            ok: false,
+            error: "Gmail authentication expired. Please disconnect and reconnect Gmail.",
+            code: "AUTH_EXPIRED",
+          },
+        };
+      }
+      if (isQuotaError(err)) {
+        return {
           ok: false,
-          error:
-            "Gmail has temporarily limited sending. Emails sent so far succeeded; remaining emails were not processed.",
-          code: "QUOTA",
-        },
-      };
+          status: 429,
+          body: {
+            ok: false,
+            error:
+              "Gmail has temporarily limited sending. Emails sent so far succeeded; remaining emails were not processed.",
+            code: "QUOTA",
+          },
+        };
+      }
+      const message = err instanceof Error ? err.message : "Unknown Gmail error";
+      return { ok: false, status: 502, body: { ok: false, error: `Gmail error: ${message}`, code: "GMAIL_ERROR" } };
     }
-    const message = err instanceof Error ? err.message : "Unknown Gmail error";
-    return { ok: false, status: 502, body: { ok: false, error: `Gmail error: ${message}`, code: "GMAIL_ERROR" } };
   }
+  return {
+    ok: false,
+    status: 401,
+    body: {
+      ok: false,
+      error: "Gmail authentication expired. Please disconnect and reconnect Gmail.",
+      code: "AUTH_EXPIRED",
+    },
+  };
 }

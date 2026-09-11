@@ -14,6 +14,7 @@ export interface RecipientResult {
   attachmentName: string | null;
   status: RecipientStatus;
   error?: string;
+  time?: string; // ISO timestamp of when this recipient reached a final state
 }
 
 export interface CampaignData {
@@ -39,13 +40,13 @@ export function fileToBase64(file: File): Promise<string> {
 
 export function resultsToCsv(results: RecipientResult[], campaign: CampaignData): string {
   const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  const header = ["Student Name", "Email", "Domain", "Role", "Attachment", "Status", "Error"];
+  const header = ["Student Name", "Email", "Domain", "Role", "Attachment", "Status", "Time", "Error"];
   const lines = [header.map(esc).join(",")];
   for (const r of results) {
     const row = campaign.rows[r.index] ?? {};
     const role = campaign.mapping.role ? String(row[campaign.mapping.role] ?? "") : "";
     lines.push(
-      [r.name, r.email, r.domain, role, r.attachmentName ?? "", r.status, r.error ?? ""].map(esc).join(",")
+      [r.name, r.email, r.domain, role, r.attachmentName ?? "", r.status, r.time ?? "", r.error ?? ""].map(esc).join(",")
     );
   }
   return lines.join("\r\n");

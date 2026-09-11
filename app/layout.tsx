@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "E-Cell Mailer",
-  description: "Send personalized emails and attachments to your E-Cell community.",
+  title: "Ecell Automation",
+  description: "Personalized bulk email automation for E-Cell.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

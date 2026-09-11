@@ -66,6 +66,7 @@ export function validateRows(
   const needRole = needsField("role");
 
   const seen = new Map<string, number>(); // email -> first index
+  const counts = new Map<string, number>(); // email -> occurrences (linear duplicate detection)
   const rowStatus: ("valid" | "invalid")[] = [];
   const rowProblems: (string | null)[] = [];
   const invalid: InvalidRow[] = [];
@@ -96,6 +97,7 @@ export function validateRows(
         problems.push("Invalid email");
       } else {
         const key = email.toLowerCase();
+        counts.set(key, (counts.get(key) ?? 0) + 1);
         if (seen.has(key)) {
           problems.push(`Duplicate email (first seen at row ${seen.get(key)! + 2})`);
         } else {
@@ -139,9 +141,7 @@ export function validateRows(
     }
   });
 
-  const duplicates = [...seen.entries()]
-    .filter(([, first]) => rows.filter((r) => String(emailCol ? r[emailCol] : "").trim().toLowerCase() === rows[first][emailCol!]?.toString().trim().toLowerCase()).length > 1)
-    .map(([email]) => email);
+  const duplicates = [...counts.entries()].filter(([, n]) => n > 1).map(([email]) => email);
 
   return {
     summary: { total: rows.length, valid: rows.length - invalid.length, invalid, duplicateEmails: duplicates },

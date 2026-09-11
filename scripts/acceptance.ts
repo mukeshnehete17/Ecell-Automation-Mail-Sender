@@ -4,6 +4,9 @@ import { validateRows } from "../lib/excel";
 import { renderTemplate, extractVariables, findMissingVariables } from "../lib/personalization";
 import { matchFilesToRows } from "../lib/matching";
 import { textToHtml } from "../lib/email-format";
+import { buildRawMessage, encodeHeaderParam } from "../lib/mime";
+import { resultsToCsv } from "../lib/campaign";
+import { missingOAuthEnv, expectedRedirectUri } from "../lib/env";
 
 let failures = 0;
 function check(name: string, cond: boolean) {
@@ -73,6 +76,64 @@ check(
   html.includes("<ul>") && html.includes("<strong>bold</strong>") && html.includes('href="https://example.com"')
 );
 check("escapes scripts", !textToHtml("<script>alert(1)</script>").includes("<script>"));
+
+// --- duplicate summary is linear and correct ---
+const dupRows = [
+  { "Student Name": "A", Email: "a@example.com", Domain: "X" },
+  { "Student Name": "B", Email: "A@example.com", Domain: "X" },
+  { "Student Name": "C", Email: "c@example.com", Domain: "X" },
+];
+const vd = validateRows(dupRows, headers, { ...mapping }, { subject, body, attachmentMode: "none" });
+check("duplicate summary lists a@example.com", vd.summary.duplicateEmails.join() === "a@example.com");
+check("second dupe invalid", vd.rowStatus[1] === "invalid");
+
+// --- dynamic custom column placeholder ---
+const customHeaders = ["Name", "Email", "College"];
+const customMapping = autoDetectColumns(customHeaders);
+const customRow = { Name: "Rahul", Email: "r@example.com", College: "ABC College" };
+check(
+  "custom [College] resolves",
+  renderTemplate("Hello [Name], welcome from [College]!", customRow, customHeaders, customMapping) ===
+    "Hello Rahul, welcome from ABC College!"
+);
+
+// --- MIME: unicode filenames + structure ---
+const rawB64Url = buildRawMessage({
+  to: "test@example.com",
+  subject: "नमस्ते Rahul 🎉",
+  bodyText: "Dear Rahul,\n\nWelcome!",
+  attachments: [
+    { filename: "Rahul_Patil.pdf", mimeType: "application/pdf", contentBase64: Buffer.from("pdf-bytes").toString("base64") },
+    { filename: "प्रमाणपत्र_Rahul.pdf", mimeType: "application/pdf", contentBase64: Buffer.from("pdf-bytes").toString("base64") },
+  ],
+});
+const rawMime = Buffer.from(rawB64Url.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
+check("mime has To header", rawMime.includes("To: test@example.com"));
+check("mime subject RFC2047", rawMime.includes("Subject: =?UTF-8?B?"));
+check("mime ascii filename quoted", rawMime.includes('filename="Rahul_Patil.pdf"'));
+check(
+  "mime unicode filename encoded",
+  rawMime.includes("filename=\"=?UTF-8?B?") && !rawMime.includes("प्रमाणपत्र_Rahul.pdf")
+);
+check("mime closes boundaries", rawMime.includes("--") && rawMime.includes("multipart/mixed"));
+check("ascii param quoted", encodeHeaderParam("a b.pdf") === '"a b.pdf"');
+check("header injection stripped", !encodeHeaderParam('a"\r\nBcc: x@y.z').includes("\r\n"));
+
+// --- CSV report with timestamps ---
+const csv = resultsToCsv(
+  [
+    { index: 0, name: "Rahul", email: "r@example.com", domain: "Tech", attachmentName: "R.pdf", status: "sent", time: "2026-01-01T00:00:00.000Z" },
+    { index: 1, name: 'Priya "P"', email: "p@example.com", domain: "", attachmentName: null, status: "failed", error: "Gmail error: boom", time: "2026-01-01T00:01:00.000Z" },
+  ],
+  { headers, rows, mapping, fileName: "s.xlsx" }
+);
+const csvLines = csv.split("\r\n");
+check("csv header has Time", csvLines[0] === '"Student Name","Email","Domain","Role","Attachment","Status","Time","Error"');
+check("csv escapes quotes", csvLines[2].includes('"Priya ""P"""'));
+
+// --- env helper ---
+check("env helper detects missing", Array.isArray(missingOAuthEnv()));
+check("redirect uri default", expectedRedirectUri().endsWith("/api/auth/callback/google"));
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

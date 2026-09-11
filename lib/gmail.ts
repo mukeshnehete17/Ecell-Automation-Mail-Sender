@@ -34,7 +34,27 @@ export function gmailClient(accessToken: string, refreshToken?: string) {
     process.env.GOOGLE_CLIENT_SECRET
   );
   oauth2.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
-  return google.gmail({ version: "v1", auth: oauth2 });
+  return { gmail: google.gmail({ version: "v1", auth: oauth2 }), oauth2 };
+}
+
+/**
+ * Exchange the stored refresh token for a fresh access token (single attempt).
+ * Returns null when no refresh token exists or the refresh fails (e.g. revoked).
+ * Never throws and never logs token values.
+ */
+export async function refreshAccessToken(refreshToken: string | undefined): Promise<string | null> {
+  if (!refreshToken) return null;
+  try {
+    const oauth2 = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
+    oauth2.setCredentials({ refresh_token: refreshToken });
+    const res = await oauth2.getAccessToken();
+    return res.token ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function isQuotaError(err: unknown): boolean {

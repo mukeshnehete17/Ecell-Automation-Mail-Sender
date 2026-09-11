@@ -8,6 +8,7 @@ export default function GmailHeader({ onStatus }: { onStatus: (s: { connected: b
   const { status } = useSession();
   const [gmail, setGmail] = useState<{ connected: boolean; email: string }>({ connected: false, email: "" });
   const [checking, setChecking] = useState(true);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -21,11 +22,13 @@ export default function GmailHeader({ onStatus }: { onStatus: (s: { connected: b
           const s = { connected: !!data.connected, email: data.email ?? "" };
           setGmail(s);
           onStatus(s);
+          setSetupError(data.configured === false ? (data.error ?? "Google OAuth is not configured.") : null);
         }
       } catch {
         if (!cancelled) {
           setGmail({ connected: false, email: "" });
           onStatus({ connected: false, email: "" });
+          setSetupError(null);
         }
       } finally {
         if (!cancelled) setChecking(false);
@@ -50,8 +53,8 @@ export default function GmailHeader({ onStatus }: { onStatus: (s: { connected: b
     <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <div>
-          <h1 className="text-lg font-bold tracking-tight text-neutral-900">E-Cell Mailer</h1>
-          <p className="hidden text-xs text-neutral-500 sm:block">Send personalized emails and attachments to your E-Cell community.</p>
+          <h1 className="text-lg font-bold tracking-tight text-neutral-900">Ecell Automation</h1>
+          <p className="hidden text-xs text-neutral-500 sm:block">Personalized bulk email automation for E-Cell.</p>
         </div>
         <div>
           {checking ? (
@@ -83,7 +86,7 @@ export default function GmailHeader({ onStatus }: { onStatus: (s: { connected: b
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(false);
-                      void signOut();
+                      void signOut({ callbackUrl: "/" });
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
                   >
@@ -93,13 +96,20 @@ export default function GmailHeader({ onStatus }: { onStatus: (s: { connected: b
               )}
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => void signIn("google")}
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-            >
-              <Mail className="h-4 w-4" aria-hidden /> Connect Gmail
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={() => void signIn("google", { callbackUrl: "/" })}
+                className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+              >
+                <Mail className="h-4 w-4" aria-hidden /> Connect Gmail
+              </button>
+              {setupError && (
+                <p role="alert" className="max-w-[260px] text-right text-xs text-red-600">
+                  {setupError}
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>

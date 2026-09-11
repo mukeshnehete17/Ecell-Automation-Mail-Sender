@@ -1,6 +1,6 @@
-# E-Cell Mailer
+# Ecell Automation
 
-Send personalized emails and attachments to your E-Cell community.
+Personalized bulk email automation for E-Cell.
 
 **Workflow:** Upload Excel → Map columns → Write any email → Attach files (optional) → Preview → Send test → Confirm → Send all → Results → Download report.
 
@@ -62,6 +62,7 @@ invalid rows): `public/samples/students-sample.xlsx` and `public/samples/certifi
 ```env
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/callback/google
 NEXTAUTH_SECRET=<random 32+ char string>   # e.g. openssl rand -base64 32
 NEXTAUTH_URL=http://localhost:3000
 ```
@@ -79,6 +80,7 @@ Then in **Vercel → Project → Settings → Environment Variables**, add:
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI` (must equal `https://<your-app>.vercel.app/api/auth/callback/google`)
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL=https://<your-app>.vercel.app`
 
@@ -91,6 +93,7 @@ in the Google Cloud OAuth client, redeploy, and test Gmail auth + sending in pro
 app/
   page.tsx                    # dashboard + campaign orchestration
   layout.tsx / providers.tsx  # SessionProvider
+  auth-error/                 # friendly OAuth error page (cancelled/denied logins)
   api/
     auth/[...nextauth]/route.ts
     gmail/status|send|test/route.ts
@@ -98,10 +101,11 @@ components/
   GmailHeader.tsx  ExcelUploader.tsx  ColumnMapper.tsx  CampaignComposer.tsx
   AttachmentManager.tsx  EmailPreview.tsx  TestEmail.tsx  SendWidgets.tsx  ui.tsx
 lib/
-  columns.ts  excel.ts  personalization.ts  matching.ts
+  columns.ts  excel.ts  personalization.ts  matching.ts  env.ts
   email-format.ts  mime.ts  gmail.ts  send-email.ts  auth.ts  campaign.ts
 public/samples/               # fake test datasets
 scripts/make-sample.mjs       # regenerates sample Excel files
+scripts/acceptance.ts         # lightweight logic tests (run with tsx)
 ```
 
 ## Privacy & security notes
@@ -110,3 +114,7 @@ scripts/make-sample.mjs       # regenerates sample Excel files
 - Gmail OAuth tokens are kept in server-side encrypted JWTs and never exposed to the frontend.
 - Email HTML is sanitized server-side (`sanitize-html` allowlist); subjects are RFC-2047 encoded for Unicode/emoji.
 - Bulk sends run sequentially with pacing; quota errors stop the campaign safely instead of retry-looping.
+- Sign-in always uses `prompt=select_account` so the Google account chooser appears every time.
+- Access tokens expire after ~1 hour; the send API attempts one silent refresh when a refresh token
+  is available, otherwise it asks the user to disconnect and reconnect Gmail. (Google only issues a
+  refresh token on first-time consent, so keep the original authorization if prompted.)

@@ -71,13 +71,14 @@ export function ResultsTable({
         {skipped > 0 && <Badge tone="amber">Skipped: {skipped}</Badge>}
       </div>
       <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
-        <table className="w-full min-w-[680px] text-left text-sm">
+        <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
             <tr className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
               <th className="px-3 py-2">Student</th>
               <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Attachment</th>
+              <th className="px-3 py-2">Time</th>
               <th className="px-3 py-2">Error</th>
             </tr>
           </thead>
@@ -93,6 +94,9 @@ export function ResultsTable({
                   {r.status === "sending" && <Loader2 className="h-4 w-4 animate-spin text-neutral-500" aria-hidden />}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs text-neutral-600">{r.attachmentName ?? "—"}</td>
+                <td className="px-3 py-2 text-xs whitespace-nowrap text-neutral-600">
+                  {r.time ? new Date(r.time).toLocaleTimeString() : "—"}
+                </td>
                 <td className="px-3 py-2 text-xs text-red-700">{r.error ?? ""}</td>
               </tr>
             ))}

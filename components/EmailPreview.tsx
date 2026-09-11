@@ -40,7 +40,8 @@ export default function EmailPreview(props: Props) {
   const to = emailCol ? String(row[emailCol] ?? "") : "";
   const renderedSubject = renderTemplate(props.subject || "(no subject)", row, props.headers, props.mapping);
   const renderedBody = renderTemplate(props.body || "(no message)", row, props.headers, props.mapping);
-  const attachments = props.mode === "same" ? props.sameFiles : props.mode === "individual" ? (props.fileForRow(safeIndex) ? [props.fileForRow(safeIndex)!] : []) : [];
+  const individualFile = props.mode === "individual" ? props.fileForRow(safeIndex) : null;
+  const attachments = props.mode === "same" ? props.sameFiles : individualFile ? [individualFile] : [];
 
   const previewRows = validIndexes.slice(0, 5);
 

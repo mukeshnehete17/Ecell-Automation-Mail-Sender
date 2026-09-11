@@ -199,6 +199,7 @@ export default function Home() {
               : null,
         status: valid ? ("ready" as const) : ("skipped" as const),
         error: valid ? undefined : (validation?.rowProblems[i] ?? "Skipped"),
+        time: valid ? undefined : new Date().toISOString(),
       };
     });
     setResults(initial);
@@ -223,9 +224,10 @@ export default function Home() {
           body: JSON.stringify({ to: p.to, subject: p.subject, bodyText: p.bodyText, attachments }),
         });
         const data = await res.json();
+        const now = new Date().toISOString();
         if (data.ok) {
           setResults((prev) =>
-            prev ? prev.map((r) => (r.index === i ? { ...r, status: "sent" as const, error: undefined } : r)) : prev
+            prev ? prev.map((r) => (r.index === i ? { ...r, status: "sent" as const, error: undefined, time: now } : r)) : prev
           );
         } else if (data.code === "QUOTA") {
           stoppedByQuota = true;
@@ -233,9 +235,9 @@ export default function Home() {
             prev
               ? prev.map((r) =>
                   r.index === i
-                    ? { ...r, status: "failed" as const, error: data.error }
+                    ? { ...r, status: "failed" as const, error: data.error, time: now }
                     : r.status === "ready"
-                      ? { ...r, status: "skipped" as const, error: "Not processed — Gmail rate limit reached." }
+                      ? { ...r, status: "skipped" as const, error: "Not processed — Gmail rate limit reached.", time: now }
                       : r
                 )
               : prev
@@ -243,12 +245,12 @@ export default function Home() {
           break;
         } else {
           setResults((prev) =>
-            prev ? prev.map((r) => (r.index === i ? { ...r, status: "failed" as const, error: data.error ?? "Send failed" } : r)) : prev
+            prev ? prev.map((r) => (r.index === i ? { ...r, status: "failed" as const, error: data.error ?? "Send failed", time: now } : r)) : prev
           );
         }
       } catch {
         setResults((prev) =>
-          prev ? prev.map((r) => (r.index === i ? { ...r, status: "failed" as const, error: "Network error" } : r)) : prev
+          prev ? prev.map((r) => (r.index === i ? { ...r, status: "failed" as const, error: "Network error", time: new Date().toISOString() } : r)) : prev
         );
       }
       done += 1;
@@ -271,7 +273,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ecell-mailer-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `ecell-automation-report-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -453,7 +455,7 @@ export default function Home() {
 
       <footer className="mx-auto max-w-6xl px-4 pb-8 sm:px-6">
         <p className="text-center text-xs text-neutral-400">
-          E-Cell Mailer · Internal tool · Student data is processed in your browser and never stored permanently.
+          Ecell Automation · Internal tool · Student data is processed in your browser and never stored permanently.
         </p>
       </footer>
 
