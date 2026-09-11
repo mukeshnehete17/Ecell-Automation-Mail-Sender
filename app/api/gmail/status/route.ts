@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getGmailContext } from "@/lib/gmail";
 import { isOAuthConfigured, missingOAuthEnv } from "@/lib/env";
 
+// Auth configuration must always be evaluated live — never statically cached.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   if (!isOAuthConfigured()) {
     return NextResponse.json({

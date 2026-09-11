@@ -16,7 +16,8 @@ export default function GmailHeader({ onStatus }: { onStatus: (s: { connected: b
     let cancelled = false;
     async function check() {
       try {
-        const res = await fetch("/api/gmail/status");
+        // Never cache auth status: a stale "not configured" response must not survive a fix + refresh.
+        const res = await fetch("/api/gmail/status", { cache: "no-store" });
         const data = await res.json();
         if (!cancelled) {
           const s = { connected: !!data.connected, email: data.email ?? "" };
